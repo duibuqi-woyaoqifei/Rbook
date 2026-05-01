@@ -1,0 +1,19 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.rbook.app-mergeDebugResources-2:/values-w600dp-land-v13/values-w600dp-land-v13.xml",
+            "map": [
+                {
+                    "source": "D:\\develop\\gradle_home\\caches\\transforms-4\\65b5f5f4e0b5c7a6917105a6c4bc3b67\\transformed\\material-1.7.0\\res\\values-w600dp-land-v13\\values-w600dp-land-v13.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "54",
+                        "endOffsets": "105"
+                    }
+                }
+            ]
+        }
+    ]
+}

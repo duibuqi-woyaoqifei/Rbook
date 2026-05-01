@@ -20,11 +20,9 @@ import com.rbook.domain.model.Book
 import com.rbook.domain.model.ReaderSettings
 import com.rbook.domain.model.ReaderTheme
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
-import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.toLocator
 import java.io.File
-import kotlinx.coroutines.flow.collect
 
 @Composable
 fun EpubReader(
@@ -108,7 +106,6 @@ fun EpubNavigatorView(
                 }
             }
 
-            // Always remove old fragment to ensure it's re-attached to the new container ID
             val existingFragment = fragmentManager.findFragmentByTag("epub_navigator")
             if (existingFragment != null) {
                 fragmentManager.beginTransaction().remove(existingFragment).commitNow()
@@ -132,20 +129,6 @@ fun EpubNavigatorView(
                 onUpdateProgress(progression.toFloat(), if (index != -1) index else 0)
             }
         }
-
-        // Apply settings changes
-        LaunchedEffect(settings) {
-            val fragment = fragmentManager.findFragmentByTag("epub_navigator") as? EpubNavigatorFragment
-            fragment?.let { 
-                // Note: Readium 2.3.0 uses the Preferences API for settings.
-                // We try to apply font size and theme if the API matches.
-                // Since we don't have direct access to all Readium types here without breaking imports,
-                // we'll use a common way if possible or just note that it needs the correct imports.
-                
-                // For font size, Readium often uses a percentage multiplier (e.g., 100% = 1.0)
-                // Assuming settings.fontSize is in pt/sp (e.g. 18), we can try to map it.
-            }
-        }
     }
 }
 
@@ -157,4 +140,3 @@ private fun Context.findActivity(): FragmentActivity? {
     }
     return null
 }
-

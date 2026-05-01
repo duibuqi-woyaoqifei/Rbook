@@ -1,50 +1,44 @@
 package com.rbook.ui.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.rbook.ui.screens.bookshelf.BookshelfScreen
 import com.rbook.ui.screens.reader.ReaderScreen
-
-sealed class Screen(val route: String) {
-    object Bookshelf : Screen("bookshelf")
-    object Stats : Screen("stats")
-    object Reader : Screen("reader/{bookId}") {
-        fun createRoute(bookId: Long) = "reader/$bookId"
-    }
-}
+import com.rbook.ui.screens.stats.StatsScreen
 
 @Composable
-fun RBookNavGraph(
-    navController: NavHostController = rememberNavController()
-) {
+fun NavGraph() {
+    val navController = rememberNavController()
+    
     NavHost(
         navController = navController,
-        startDestination = Screen.Bookshelf.route
+        startDestination = "bookshelf"
     ) {
-        composable(Screen.Bookshelf.route) {
+        composable("bookshelf") {
             BookshelfScreen(
-                onBookClick = { bookId ->
-                    navController.navigate(Screen.Reader.createRoute(bookId))
+                onNavigateToReader = { bookId ->
+                    navController.navigate("reader/$bookId")
                 },
-                onStatsClick = {
-                    navController.navigate(Screen.Stats.route)
+                onNavigateToStats = {
+                    navController.navigate("stats")
                 }
             )
         }
-        composable(Screen.Stats.route) {
-            com.rbook.ui.screens.stats.StatsScreen(
-                onBack = { navController.popBackStack() }
-            )
+        
+        composable("reader/{bookId}") { backStackEntry ->
+            val bookId = backStackEntry.arguments?.getString("bookId")?.toLongOrNull()
+            if (bookId != null) {
+                ReaderScreen(
+                    bookId = bookId,
+                    onBack = { navController.popBackStack() }
+                )
+            }
         }
-        composable(Screen.Reader.route) { backStackEntry ->
-            val bookId = backStackEntry.arguments?.getString("bookId")?.toLongOrNull() ?: -1L
-            ReaderScreen(
-                bookId = bookId,
-                onBack = { navController.popBackStack() }
-            )
+        
+        composable("stats") {
+            StatsScreen(onBack = { navController.popBackStack() })
         }
     }
 }
