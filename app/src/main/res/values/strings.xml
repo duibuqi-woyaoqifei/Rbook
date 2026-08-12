@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">RBook</string>
+    <string name="bookshelf">书架</string>
+    <string name="settings">设置</string>
+    <string name="import_book">导入书籍</string>
+    <string name="no_books">暂无书籍。导入一些开始阅读吧！</string>
+</resources>
