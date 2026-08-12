@@ -16,6 +16,8 @@ import java.io.File
 fun PdfReader(
     path: String,
     title: String,
+    initialPage: Int,
+    onUpdateProgress: (Float, Int) -> Unit,
     onBack: () -> Unit
 ) {
     Scaffold(
@@ -37,7 +39,10 @@ fun PdfReader(
                         .enableSwipe(true)
                         .swipeHorizontal(false)
                         .enableDoubletap(true)
-                        .defaultPage(0)
+                        .defaultPage(initialPage)
+                        .onPageChange { page, pageCount ->
+                            onUpdateProgress(page.toFloat() / (pageCount - 1).coerceAtLeast(1), page)
+                        }
                         .load()
                 }
             },

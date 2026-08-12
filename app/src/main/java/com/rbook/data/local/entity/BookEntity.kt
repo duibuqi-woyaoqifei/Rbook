@@ -13,5 +13,7 @@ data class BookEntity(
     val coverPath: String? = null,
     val lastReadTimestamp: Long = System.currentTimeMillis(),
     val progress: Float = 0f,
+    val currentPage: Int = 0,
+    val epubLocator: String? = null,
     val totalSize: Long = 0
 )

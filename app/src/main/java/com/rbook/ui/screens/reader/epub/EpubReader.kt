@@ -21,7 +21,9 @@ import com.rbook.domain.model.ReaderSettings
 import com.rbook.domain.model.ReaderTheme
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.shared.publication.Publication
+import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.toLocator
+import org.json.JSONObject
 import java.io.File
 
 @Composable
@@ -31,9 +33,11 @@ fun EpubReader(
     settings: ReaderSettings,
     onClick: () -> Unit,
     viewModel: EpubReaderViewModel = hiltViewModel(),
-    onUpdateProgress: (Float, Int) -> Unit
+    onUpdateProgress: (Locator, Int) -> Unit
 ) {
     val publication by viewModel.publication.collectAsState()
+    val initialPage = remember(book.path) { book.currentPage ?: 0 }
+    val initialLocatorJson = remember(book.path) { book.epubLocator }
 
     LaunchedEffect(book.path) {
         viewModel.loadPublication(File(book.path))
@@ -46,7 +50,8 @@ fun EpubReader(
         } else {
             EpubNavigatorView(
                 publication = pub,
-                initialPage = book.currentPage ?: 0,
+                initialPage = initialPage,
+                initialLocatorJson = initialLocatorJson,
                 settings = settings,
                 onClick = onClick,
                 onUpdateProgress = onUpdateProgress
@@ -59,9 +64,10 @@ fun EpubReader(
 fun EpubNavigatorView(
     publication: Publication,
     initialPage: Int,
+    initialLocatorJson: String?,
     settings: ReaderSettings,
     onClick: () -> Unit,
-    onUpdateProgress: (Float, Int) -> Unit
+    onUpdateProgress: (Locator, Int) -> Unit
 ) {
     val context = LocalContext.current
     val fragmentActivity = remember(context) { context.findActivity() }
@@ -98,7 +104,7 @@ fun EpubNavigatorView(
             modifier = Modifier.fillMaxSize()
         )
 
-        LaunchedEffect(publication, initialPage) {
+        LaunchedEffect(publication) {
             val listener = object : EpubNavigatorFragment.Listener {
                 override fun onTap(point: PointF): Boolean {
                     onClick()
@@ -113,7 +119,9 @@ fun EpubNavigatorView(
 
             val factory = EpubNavigatorFragment.createFactory(
                 publication = publication,
-                initialLocator = publication.readingOrder.getOrNull(initialPage)?.toLocator() 
+                initialLocator = initialLocatorJson?.let { json ->
+                    runCatching { Locator.fromJSON(JSONObject(json)) }.getOrNull()
+                } ?: publication.readingOrder.getOrNull(initialPage)?.toLocator()
                     ?: publication.readingOrder.firstOrNull()?.toLocator(),
                 listener = listener
             )
@@ -124,9 +132,8 @@ fun EpubNavigatorView(
                 .commitAllowingStateLoss()
 
             fragment.currentLocator.collect { locator ->
-                val progression = locator.locations.totalProgression ?: 0.0
                 val index = publication.readingOrder.indexOfFirst { it.href == locator.href }
-                onUpdateProgress(progression.toFloat(), if (index != -1) index else 0)
+                onUpdateProgress(locator, if (index != -1) index else 0)
             }
         }
     }

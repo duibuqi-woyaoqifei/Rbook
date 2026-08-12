@@ -1,0 +1,117 @@
+name: Android Release CI
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Auto Update Version in build.gradle.kts
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          if [[ $VERSION =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            MAJOR=${BASH_REMATCH[1]}
+            MINOR=${BASH_REMATCH[2]}
+            PATCH=${BASH_REMATCH[3]}
+            VERSION_CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
+            
+            echo "Auto-syncing build.gradle.kts -> VersionCode: $VERSION_CODE, VersionName: $VERSION"
+            
+            # 适配 Kotlin DSL 语法 (versionCode = 123 或 versionCode = "123")
+            sed -i "s/versionCode = [0-9]*/versionCode = $VERSION_CODE/" app/build.gradle.kts
+            sed -i "s/versionName = \".*\"/versionName = \"$VERSION\"/" app/build.gradle.kts
+          else
+            echo "Warning: Tag $VERSION does not match x.y.z format, skipping auto-versioning."
+          fi
+
+      - name: Build with Gradle
+        run: ./gradlew assembleRelease
+
+      - name: Manual Sign APK
+        run: |
+          if [ -z "${{ secrets.SIGNING_KEY }}" ]; then echo "Error: SIGNING_KEY is empty"; exit 1; fi
+          
+          echo "${{ secrets.SIGNING_KEY }}" | base64 -d > release.jks
+          
+          BUILD_TOOLS_PATH=$(ls -d /usr/local/lib/android/sdk/build-tools/* | tail -1)
+          RAW_APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
+          
+          $BUILD_TOOLS_PATH/zipalign -v 4 "$RAW_APK" app-release-aligned.apk
+          
+          $BUILD_TOOLS_PATH/apksigner sign --ks release.jks \
+            --ks-key-alias "${{ secrets.ALIAS }}" \
+            --ks-pass pass:"${{ secrets.KEY_STORE_PASSWORD }}" \
+            --key-pass pass:"${{ secrets.KEY_PASSWORD }}" \
+            --v2-signing-enabled true \
+            --v3-signing-enabled true \
+            --out app-release-signed.apk \
+            app-release-aligned.apk
+
+      - name: Create GitHub Release
+        run: |
+          if gh release view ${{ github.ref_name }} > /dev/null 2>&1; then
+            gh release upload ${{ github.ref_name }} app-release-signed.apk --clobber
+          else
+            gh release create ${{ github.ref_name }} app-release-signed.apk \
+              --title "Release ${{ github.ref_name }}" \
+              --notes "自动构建并签名的正式版本。"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy to Release Branch
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          mkdir -p deploy_dir
+          cp app-release-signed.apk deploy_dir/rbook-latest.apk
+          VERSION=${GITHUB_REF_NAME#v}
+          CDN_URL="https://fastly.jsdelivr.net/gh/${{ github.repository }}@release-bin/rbook-latest.apk"
+          # App 内更新检查读取此稳定 JSON 契约；后续可增加 notes、mandatory 等字段。
+          printf '{"version":"%s","url":"%s","notes":"自动构建并签名的正式版本。"}\n' "$VERSION" "$CDN_URL" > deploy_dir/update.json
+          cd deploy_dir
+          
+          git init
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          
+          git checkout -b release-bin
+          git add rbook-latest.apk
+          git commit -m "release: update signed apk to ${GITHUB_REF_NAME}"
+          git push origin release-bin --force
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dispatch to Blog Repo
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          CDN_URL="https://fastly.jsdelivr.net/gh/${{ github.repository }}@release-bin/rbook-latest.apk"
+          
+          curl -L \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.BLOG_REPO_TOKEN }}" \
+            https://api.github.com/repos/duibuqi-woyaoqifei/jinlun-blog/dispatches \
+            -d "{\"event_type\": \"version_update\", \"client_payload\": {\"version\": \"$VERSION\", \"url\": \"$CDN_URL\"}}"

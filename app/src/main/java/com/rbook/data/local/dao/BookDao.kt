@@ -18,6 +18,15 @@ interface BookDao {
     @Update
     suspend fun updateBook(book: BookEntity)
 
+    @Query("UPDATE books SET progress = :progress, currentPage = :currentPage, epubLocator = :epubLocator, lastReadTimestamp = :lastReadTimestamp WHERE id = :bookId")
+    suspend fun updateReadingProgress(
+        bookId: Long,
+        progress: Float,
+        currentPage: Int,
+        epubLocator: String?,
+        lastReadTimestamp: Long
+    )
+
     @Delete
     suspend fun deleteBook(book: BookEntity)
 

@@ -8,5 +8,6 @@ data class Book(
     val format: String,
     val coverPath: String?,
     val progress: Float,
-    val currentPage: Int? = 0
+    val currentPage: Int? = 0,
+    val epubLocator: String? = null
 )

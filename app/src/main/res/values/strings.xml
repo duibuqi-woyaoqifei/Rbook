@@ -4,4 +4,19 @@
     <string name="settings">设置</string>
     <string name="import_book">导入书籍</string>
     <string name="no_books">暂无书籍。导入一些开始阅读吧！</string>
+    <string name="about">关于 RBook</string>
+    <string name="about_subtitle">版本、更新与联系作者</string>
+    <string name="version_format">版本 %1$s</string>
+    <string name="author">作者</string>
+    <string name="author_name">duibuqi-woyaoqifei</string>
+    <string name="contact_author">联系作者</string>
+    <string name="project_home">项目主页</string>
+    <string name="check_update">检查更新</string>
+    <string name="checking_update">正在检查更新…</string>
+    <string name="latest_version">已是最新版本</string>
+    <string name="update_available">发现新版本 %1$s</string>
+    <string name="download_update">下载更新</string>
+    <string name="update_notes">更新说明</string>
+    <string name="update_check_failed">暂时无法检查更新，请稍后重试</string>
+    <string name="feedback_email">827752284@qq.com</string>
 </resources>

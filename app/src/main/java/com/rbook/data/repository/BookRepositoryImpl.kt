@@ -26,6 +26,16 @@ class BookRepositoryImpl @Inject constructor(
         return bookDao.insertBook(book.toEntity())
     }
 
+    override suspend fun updateReadingProgress(bookId: Long, progress: Float, currentPage: Int, epubLocator: String?) {
+        bookDao.updateReadingProgress(
+            bookId = bookId,
+            progress = progress.coerceIn(0f, 1f),
+            currentPage = currentPage.coerceAtLeast(0),
+            epubLocator = epubLocator,
+            lastReadTimestamp = System.currentTimeMillis()
+        )
+    }
+
     override suspend fun deleteBook(id: Long) {
         bookDao.deleteBookById(id)
     }
@@ -37,7 +47,9 @@ class BookRepositoryImpl @Inject constructor(
         path = path,
         format = format,
         coverPath = coverPath,
-        progress = progress
+        progress = progress,
+        currentPage = currentPage,
+        epubLocator = epubLocator
     )
 
     private fun Book.toEntity() = BookEntity(
@@ -47,6 +59,8 @@ class BookRepositoryImpl @Inject constructor(
         path = path,
         format = format,
         coverPath = coverPath,
-        progress = progress
+        progress = progress,
+        currentPage = currentPage ?: 0,
+        epubLocator = epubLocator
     )
 }

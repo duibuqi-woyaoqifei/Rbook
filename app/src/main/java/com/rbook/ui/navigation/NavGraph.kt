@@ -7,6 +7,7 @@ import androidx.navigation.compose.rememberNavController
 import com.rbook.ui.screens.bookshelf.BookshelfScreen
 import com.rbook.ui.screens.reader.ReaderScreen
 import com.rbook.ui.screens.stats.StatsScreen
+import com.rbook.ui.screens.about.AboutScreen
 
 @Composable
 fun NavGraph() {
@@ -23,6 +24,9 @@ fun NavGraph() {
                 },
                 onNavigateToStats = {
                     navController.navigate("stats")
+                },
+                onNavigateToAbout = {
+                    navController.navigate("about")
                 }
             )
         }
@@ -39,6 +43,9 @@ fun NavGraph() {
         
         composable("stats") {
             StatsScreen(onBack = { navController.popBackStack() })
+        }
+        composable("about") {
+            AboutScreen(onBack = { navController.popBackStack() })
         }
     }
 }
