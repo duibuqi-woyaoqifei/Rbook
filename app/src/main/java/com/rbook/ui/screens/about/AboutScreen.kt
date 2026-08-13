@@ -19,7 +19,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 private const val AUTHOR_EMAIL = "827752284@qq.com"
-private const val PROJECT_URL = "https://github.com/duibuqi-woyaoqifei/Rbook"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,13 +52,12 @@ fun AboutScreen(onBack: () -> Unit) {
         Column(Modifier.padding(padding).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text("RBook", style = MaterialTheme.typography.headlineMedium)
             Text("版本 ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodyLarge)
-            Text("一个专注本地阅读体验的开源阅读器。", style = MaterialTheme.typography.bodyMedium)
-            HorizontalDivider()
-            ListItem(headlineContent = { Text("作者") }, supportingContent = { Text("duibuqi-woyaoqifei") })
+            Text("一个开源的本地阅读app。", style = MaterialTheme.typography.bodyMedium)
+            Divider()
+            ListItem(headlineContent = { Text("作者") }, supportingContent = { Text("Lior") })
             OutlinedButton(onClick = { open("mailto:$AUTHOR_EMAIL") }, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Default.Email, null); Spacer(Modifier.width(8.dp)); Text("联系作者（$AUTHOR_EMAIL）")
             }
-            OutlinedButton(onClick = { open(PROJECT_URL) }, modifier = Modifier.fillMaxWidth()) { Text("访问项目主页") }
             Button(onClick = {
                 checking = true; result = null
             }, enabled = !checking, modifier = Modifier.fillMaxWidth()) {

@@ -50,24 +50,61 @@ jobs:
         run: ./gradlew assembleRelease
 
       - name: Manual Sign APK
+        env:
+          # 通过 env 注入当前 step，避免在 shell 命令行直接拼入 secrets
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          if [ -z "${{ secrets.SIGNING_KEY }}" ]; then echo "Error: SIGNING_KEY is empty"; exit 1; fi
-          
-          echo "${{ secrets.SIGNING_KEY }}" | base64 -d > release.jks
-          
-          BUILD_TOOLS_PATH=$(ls -d /usr/local/lib/android/sdk/build-tools/* | tail -1)
-          RAW_APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
-          
-          $BUILD_TOOLS_PATH/zipalign -v 4 "$RAW_APK" app-release-aligned.apk
-          
-          $BUILD_TOOLS_PATH/apksigner sign --ks release.jks \
-            --ks-key-alias "${{ secrets.ALIAS }}" \
-            --ks-pass pass:"${{ secrets.KEY_STORE_PASSWORD }}" \
-            --key-pass pass:"${{ secrets.KEY_PASSWORD }}" \
+          set -e
+
+          echo "==> 1/4 定位待签名 APK"
+          APK_DIR="app/build/outputs/apk/release"
+          # 只取 release 目录下的 APK，并排除已签名文件，避免误选
+          RAW_APK=$(ls -1 "$APK_DIR"/*.apk 2>/dev/null | grep -v -- '-signed\.apk$' | head -n 1)
+          if [ -z "$RAW_APK" ]; then
+            echo "::error::未在 $APK_DIR 下找到待签名 APK"
+            exit 1
+          fi
+          echo "    RAW_APK=$RAW_APK"
+
+          echo "==> 2/4 定位 build-tools (zipalign / apksigner)"
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          # 按版本号升序取最新一个 build-tools 目录，保证稳定找到工具
+          BUILD_TOOLS_PATH=$(ls -d "$SDK_ROOT"/build-tools/*/ 2>/dev/null | sort -V | tail -n 1 | sed 's#/$##')
+          if [ -z "$BUILD_TOOLS_PATH" ] || [ ! -x "$BUILD_TOOLS_PATH/apksigner" ]; then
+            echo "::error::未在 $SDK_ROOT/build-tools 下找到 apksigner"
+            exit 1
+          fi
+          echo "    BUILD_TOOLS=$BUILD_TOOLS_PATH"
+
+          echo "==> 3/4 从 SIGNING_KEY 临时恢复 Keystore"
+          if [ -z "$SIGNING_KEY" ]; then
+            echo "::error::SIGNING_KEY 为空"
+            exit 1
+          fi
+          printf '%s' "$SIGNING_KEY" | base64 -d > release.jks
+          # 脚本结束（成功或失败）时自动删除临时 Keystore
+          trap 'rm -f release.jks' EXIT
+
+          echo "==> 4/4 zipalign + apksigner 签名"
+          "$BUILD_TOOLS_PATH/zipalign" -v 4 "$RAW_APK" app-release-aligned.apk
+
+          "$BUILD_TOOLS_PATH/apksigner" sign \
+            --ks release.jks \
+            --ks-type PKCS12 \
+            --ks-key-alias "key0" \
+            --ks-pass "pass:${KEY_STORE_PASSWORD}" \
+            --key-pass "pass:${KEY_PASSWORD}" \
             --v2-signing-enabled true \
             --v3-signing-enabled true \
             --out app-release-signed.apk \
             app-release-aligned.apk
+
+          # 验证签名产物；verify 失败时整个 step 返回非零，Workflow 即失败
+          "$BUILD_TOOLS_PATH/apksigner" verify --verbose --print-certs app-release-signed.apk
+
+          ls -lh app-release-signed.apk
 
       - name: Create GitHub Release
         run: |
@@ -79,7 +116,7 @@ jobs:
               --notes "自动构建并签名的正式版本。"
           fi
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Deploy to Release Branch
         run: |
@@ -95,16 +132,19 @@ jobs:
           cd deploy_dir
           
           git init
-          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
           
           git checkout -b release-bin
           git add rbook-latest.apk
           git commit -m "release: update signed apk to ${GITHUB_REF_NAME}"
           git push origin release-bin --force
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Dispatch to Blog Repo
+        env:
+          # 通过 env 注入，避免在 shell 命令行直接展开 secrets
+          BLOG_REPO_TOKEN: ${{ secrets.BLOG_REPO_TOKEN }}
         run: |
           VERSION=${GITHUB_REF_NAME#v}
           CDN_URL="https://fastly.jsdelivr.net/gh/${{ github.repository }}@release-bin/rbook-latest.apk"
@@ -112,6 +152,6 @@ jobs:
           curl -L \
             -X POST \
             -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${{ secrets.BLOG_REPO_TOKEN }}" \
+            -H "Authorization: Bearer ${BLOG_REPO_TOKEN}" \
             https://api.github.com/repos/duibuqi-woyaoqifei/jinlun-blog/dispatches \
             -d "{\"event_type\": \"version_update\", \"client_payload\": {\"version\": \"$VERSION\", \"url\": \"$CDN_URL\"}}"

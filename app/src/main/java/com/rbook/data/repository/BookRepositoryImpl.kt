@@ -40,6 +40,10 @@ class BookRepositoryImpl @Inject constructor(
         bookDao.deleteBookById(id)
     }
 
+    override suspend fun deleteBooks(ids: List<Long>) {
+        bookDao.deleteBooks(ids)
+    }
+
     private fun BookEntity.toDomain() = Book(
         id = id,
         title = title,
