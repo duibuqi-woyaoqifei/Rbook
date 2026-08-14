@@ -8,6 +8,11 @@
 # Local Android SDK configuration
 /local.properties
 
+# Signing keystores (never commit real keystores or passwords)
+scripts/release.jks
+*.jks
+*.keystore
+
 # Android Studio / IntelliJ project files
 .idea/
 *.iml
