@@ -58,7 +58,7 @@ jobs:
         run: |
           set -e
 
-          echo "==> 1/4 定位待签名 APK"
+          echo "==> 1/5 定位待签名 APK"
           APK_DIR="app/build/outputs/apk/release"
           # 只取 release 目录下的 APK，并排除已签名文件，避免误选
           RAW_APK=$(ls -1 "$APK_DIR"/*.apk 2>/dev/null | grep -v -- '-signed\.apk$' | head -n 1)
@@ -68,7 +68,7 @@ jobs:
           fi
           echo "    RAW_APK=$RAW_APK"
 
-          echo "==> 2/4 定位 build-tools (zipalign / apksigner)"
+          echo "==> 2/5 定位 build-tools (zipalign / apksigner / keytool)"
           SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
           # 按版本号升序取最新一个 build-tools 目录，保证稳定找到工具
           BUILD_TOOLS_PATH=$(ls -d "$SDK_ROOT"/build-tools/*/ 2>/dev/null | sort -V | tail -n 1 | sed 's#/$##')
@@ -78,21 +78,43 @@ jobs:
           fi
           echo "    BUILD_TOOLS=$BUILD_TOOLS_PATH"
 
-          echo "==> 3/4 从 SIGNING_KEY 临时恢复 Keystore"
+          echo "==> 3/5 从 SIGNING_KEY 临时恢复 Keystore"
           if [ -z "$SIGNING_KEY" ]; then
             echo "::error::SIGNING_KEY 为空"
             exit 1
           fi
-          printf '%s' "$SIGNING_KEY" | base64 -d > release.jks
+          # 展开换行后用 base64 解码，兼容 Secret 中存多行 base64 的情况
+          printf '%s\n' "$SIGNING_KEY" | tr -d '\r' | base64 -d > release.jks
           # 脚本结束（成功或失败）时自动删除临时 Keystore
           trap 'rm -f release.jks' EXIT
 
-          echo "==> 4/4 zipalign + apksigner 签名"
+          echo "==> 4/5 校验 Secrets 与 Keystore，先行诊断（便于区分是密码问题还是内容问题）"
+          [ -n "$KEY_STORE_PASSWORD" ] || { echo "::error::KEY_STORE_PASSWORD 为空"; exit 1; }
+          [ -n "$KEY_PASSWORD" ] || { echo "::error::KEY_PASSWORD 为空"; exit 1; }
+
+          # 用 keytool -list 验证 store 密码是否匹配；失败即能明确指向 KEY_STORE_PASSWORD
+          if command -v keytool >/dev/null 2>&1; then
+            if keytool -list -keystore release.jks -storepass "$KEY_STORE_PASSWORD" -storetype PKCS12 >/dev/null 2>&1 \
+               || keytool -list -keystore release.jks -storepass "$KEY_STORE_PASSWORD" -storetype JKS >/dev/null 2>&1; then
+              echo "    [OK] KEY_STORE_PASSWORD 与 Keystore 匹配"
+            else
+              echo "::error::KEY_STORE_PASSWORD 无法打开 Keystore（密码不匹配或 Keystore 内容损坏）"
+              echo "    - 请核对 GitHub Secrets 中的 KEY_STORE_PASSWORD 是否与创建 Keystore 时的密码完全一致（含空格）。"
+              echo "    - 请核对 SIGNING_KEY 是否是对同一个 .jks 文件 base64 编码的结果。"
+              echo "    - 若本地 Keystore 是 JKS 格式，无需强制为 PKCS12（本流程已自动探测）。"
+              ls -l release.jks
+              exit 1
+            fi
+          fi
+
+          # apksigner 直接加载文件会自动识别 Keystore 类型（JKS / PKCS12），
+          # 因此这里不指定 --ks-type，避免格式强制导致的“假密码”错误。
+
+          echo "==> 5/5 zipalign + apksigner 签名"
           "$BUILD_TOOLS_PATH/zipalign" -v 4 "$RAW_APK" app-release-aligned.apk
 
           "$BUILD_TOOLS_PATH/apksigner" sign \
             --ks release.jks \
-            --ks-type PKCS12 \
             --ks-key-alias "key0" \
             --ks-pass "pass:${KEY_STORE_PASSWORD}" \
             --key-pass "pass:${KEY_PASSWORD}" \
