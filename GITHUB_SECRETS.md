@@ -64,9 +64,12 @@
 ## 四、发布流程说明（对照 `.github/workflows/release.yml`）
 
 - 触发：推送 `v*` tag（如 `v1.2.3`）。
-- 自动同步版本号：`versionCode = major*10000 + minor*100 + patch`，`versionName` 取 tag。
+- 版本号只来自 tag：workflow 解析 tag 得到 `versionName = x.x.x`，`versionCode` 基于
+  `major*10000 + minor*100 + patch` 计算，并用 git 历史 tag 保证严格大于所有既往发布版本码；
+  通过 `-PRBOOK_VERSION_NAME / -PRBOOK_VERSION_CODE` 注入 Gradle，**不修改** `build.gradle.kts`。
 - 构建 `assembleRelease`（开启 R8 混淆与资源压缩）。
 - 手动签名：`base64 -d` 恢复 keystore → `zipalign` → `apksigner`（alias `key0`）。
 - 创建 GitHub Release 并上传签好名的 APK（同名已存在则覆盖）。
-- 部署 `rbook-latest.apk` 与 `update.json` 到 `release-bin` 分支（供 App 内更新检查）。
+- 部署 `rbook-latest.apk` 与 `update.json` 到 `release-bin` 分支；`update.json` 含
+  `versionCode` 字段，App 端仅在 `remoteVersionCode > BuildConfig.VERSION_CODE` 时提示更新。
 - （可选）dispatch 到 `jinlun-blog` 通知版本更新。

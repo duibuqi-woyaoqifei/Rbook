@@ -33,7 +33,8 @@ fun AboutScreen(onBack: () -> Unit) {
     LaunchedEffect(checking) {
         if (checking) {
             update = withContext(Dispatchers.IO) { runCatching { UpdateRepository.fetch() }.getOrNull() }
-            result = if (update == null) UpdateResult.Failed else if (isNewer(update!!.version, BuildConfig.VERSION_NAME)) UpdateResult.Available else UpdateResult.Latest
+            result = if (update == null) UpdateResult.Failed
+            else if (hasNewerVersion(update!!)) UpdateResult.Available else UpdateResult.Latest
             checking = false
         }
     }
@@ -75,7 +76,17 @@ fun AboutScreen(onBack: () -> Unit) {
 }
 
 private enum class UpdateResult { Latest, Available, Failed }
-private fun isNewer(remote: String, local: String): Boolean {
+
+/** 判断远程是否为更新版本：
+ *  优先严格数值比较 remoteVersionCode > BuildConfig.VERSION_CODE；
+ *  兼容旧版 update.json（无 versionCode 字段时回退到语义化字符串比较）。
+ */
+private fun hasNewerVersion(remote: UpdateInfo): Boolean {
+    if (remote.versionCode > 0) return remote.versionCode > BuildConfig.VERSION_CODE
+    return isNewerVersion(remote.version, BuildConfig.VERSION_NAME)
+}
+
+private fun isNewerVersion(remote: String, local: String): Boolean {
     fun parts(v: String) = v.trimStart('v').split('.').map { it.toIntOrNull() ?: 0 }
     val r = parts(remote); val l = parts(local)
     for (i in 0 until maxOf(r.size, l.size)) if ((r.getOrElse(i) { 0 }) != (l.getOrElse(i) { 0 })) return r.getOrElse(i) { 0 } > l.getOrElse(i) { 0 }

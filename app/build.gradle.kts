@@ -12,8 +12,16 @@ android {
         applicationId = "com.rbook"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+
+        // 版本号的唯一来源是 Git Tag：GitHub Actions Release 时将 tag 解析出的
+        // versionName / versionCode 通过 -PRBOOK_VERSION_NAME / -PRBOOK_VERSION_CODE 注入。
+        // 本地开发构建未传参时仅使用下方回退默认值（不参与正式发布）。
+        versionCode = (project.findProperty("RBOOK_VERSION_CODE") as? String)?.toIntOrNull()
+            ?: System.getenv("RBOOK_VERSION_CODE")?.toIntOrNull()
+            ?: 1
+        versionName = (project.findProperty("RBOOK_VERSION_NAME") as? String)
+            ?: System.getenv("RBOOK_VERSION_NAME")
+            ?: "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
