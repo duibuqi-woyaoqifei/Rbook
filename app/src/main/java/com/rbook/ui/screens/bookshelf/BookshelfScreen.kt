@@ -9,10 +9,13 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -21,7 +24,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
@@ -168,9 +170,9 @@ fun BookshelfScreen(
                             .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        SortFilterChip(SortOption.LAST_READ, sortOption, viewModel::setSortOption, "最近阅读")
-                        SortFilterChip(SortOption.TITLE, sortOption, viewModel::setSortOption, "书名")
-                        SortFilterChip(SortOption.AUTHOR, sortOption, viewModel::setSortOption, "作者")
+                        SortChip(sortOption == SortOption.LAST_READ, { viewModel.setSortOption(SortOption.LAST_READ) }, "最近阅读")
+                        SortChip(sortOption == SortOption.TITLE, { viewModel.setSortOption(SortOption.TITLE) }, "书名")
+                        SortChip(sortOption == SortOption.AUTHOR, { viewModel.setSortOption(SortOption.AUTHOR) }, "作者")
                     }
                 }
             }
@@ -237,33 +239,35 @@ fun BookshelfScreen(
     }
 }
 
-/** 固定预留选中勾选图标的布局空间，避免筛选按钮选中时图标把文字挤掉/遮盖。 */
-@OptIn(ExperimentalMaterial3Api::class)
+/** 排序筛选 pill 样式：选中时用高亮背景表示状态，文字始终完整显示、不带勾选图标。 */
 @Composable
-private fun SortFilterChip(
-    option: SortOption,
-    current: SortOption,
-    onSelect: (SortOption) -> Unit,
+private fun SortChip(
+    selected: Boolean,
+    onClick: () -> Unit,
     label: String
 ) {
-    val selected = current == option
-    FilterChip(
-        selected = selected,
-        onClick = { onSelect(option) },
-        label = { Text(label, maxLines = 1) },
-        leadingIcon = {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(18.dp)) {
-                if (selected) {
-                    Icon(
-                        imageVector = Icons.Filled.Check,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-            }
-        }
-    )
+    val selectedContainer = MaterialTheme.colorScheme.secondaryContainer
+    val selectedContent = MaterialTheme.colorScheme.onSecondaryContainer
+
+    Surface(
+        modifier = Modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(50),
+        color = if (selected) selectedContainer else MaterialTheme.colorScheme.surfaceVariant,
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (selected) MaterialTheme.colorScheme.secondary
+            else MaterialTheme.colorScheme.outlineVariant
+        )
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = if (selected) selectedContent else MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            maxLines = 1,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
