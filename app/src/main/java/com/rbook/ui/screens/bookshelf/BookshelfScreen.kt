@@ -1,8 +1,17 @@
 package com.rbook.ui.screens.bookshelf
 
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -12,6 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
@@ -47,6 +57,13 @@ fun BookshelfScreen(
 
     var selectionMode by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var searchVisible by remember { mutableStateOf(false) }
+
+    // 处于管理(选择)模式时，系统返回键先退出选择模式回到主页，而不是直接退出应用
+    BackHandler(enabled = selectionMode) {
+        selectionMode = false
+        viewModel.clearSelection()
+    }
 
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(Unit) {
@@ -73,7 +90,14 @@ fun BookshelfScreen(
                         }
                     },
                     actions = {
-                        TextButton(onClick = { viewModel.selectAll(books.map { it.id }) }) {
+                        TextButton(onClick = {
+                            val visibleIds = books.map { it.id }
+                            if (visibleIds.isNotEmpty() && visibleIds.all { it in selectedIds }) {
+                                viewModel.clearSelection() // 已全选时再点"全选"= 取消全选
+                            } else {
+                                viewModel.selectAll(visibleIds)
+                            }
+                        }) {
                             Text("全选")
                         }
                         IconButton(
@@ -88,6 +112,12 @@ fun BookshelfScreen(
                 TopAppBar(
                     title = { Text("RBook", fontWeight = FontWeight.Bold) },
                     actions = {
+                        IconButton(onClick = { searchVisible = !searchVisible }) {
+                            Icon(
+                                imageVector = if (searchVisible) Icons.Default.Close else Icons.Default.Search,
+                                contentDescription = "搜索"
+                            )
+                        }
                         IconButton(onClick = onNavigateToStats) {
                             Icon(Icons.Default.BarChart, contentDescription = "统计")
                         }
@@ -107,57 +137,40 @@ fun BookshelfScreen(
         }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            if (!selectionMode) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = viewModel::setSearchQuery,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    placeholder = { Text("搜索书名或作者") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                                Icon(Icons.Default.Clear, contentDescription = "清空")
+            AnimatedVisibility(
+                visible = searchVisible && !selectionMode,
+                enter = fadeIn(animationSpec = tween(250)) + expandVertically(expandFrom = Alignment.Top),
+                exit = fadeOut(animationSpec = tween(200)) + shrinkVertically(shrinkTowards = Alignment.Top)
+            ) {
+                Column(Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = viewModel::setSearchQuery,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        placeholder = { Text("搜索书名或作者") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { viewModel.setSearchQuery("") }) {
+                                    Icon(Icons.Default.Clear, contentDescription = "清空")
+                                }
                             }
-                        }
-                    },
-                    singleLine = true
-                )
+                        },
+                        singleLine = true
+                    )
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
                     Row(
                         modifier = Modifier
-                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
                             .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        FilterChip(
-                            selected = sortOption == SortOption.LAST_READ,
-                            onClick = { viewModel.setSortOption(SortOption.LAST_READ) },
-                            label = { Text("最近阅读") }
-                        )
-                        FilterChip(
-                            selected = sortOption == SortOption.TITLE,
-                            onClick = { viewModel.setSortOption(SortOption.TITLE) },
-                            label = { Text("书名") }
-                        )
-                        FilterChip(
-                            selected = sortOption == SortOption.AUTHOR,
-                            onClick = { viewModel.setSortOption(SortOption.AUTHOR) },
-                            label = { Text("作者") }
-                        )
-                    }
-                    TextButton(onClick = { selectionMode = true }) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null)
-                        Spacer(Modifier.width(4.dp))
-                        Text("管理")
+                        SortFilterChip(SortOption.LAST_READ, sortOption, viewModel::setSortOption, "最近阅读")
+                        SortFilterChip(SortOption.TITLE, sortOption, viewModel::setSortOption, "书名")
+                        SortFilterChip(SortOption.AUTHOR, sortOption, viewModel::setSortOption, "作者")
                     }
                 }
             }
@@ -188,6 +201,11 @@ fun BookshelfScreen(
                             onClick = {
                                 if (selectionMode) viewModel.toggleSelect(book.id)
                                 else onNavigateToReader(book.id)
+                            },
+                            onLongPress = {
+                                // 长按书籍封面进入管理页面，并选中该书
+                                selectionMode = true
+                                viewModel.selectAll(listOf(book.id))
                             }
                         )
                     }
@@ -219,21 +237,51 @@ fun BookshelfScreen(
     }
 }
 
+/** 固定预留选中勾选图标的布局空间，避免筛选按钮选中时图标把文字挤掉/遮盖。 */
 @OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SortFilterChip(
+    option: SortOption,
+    current: SortOption,
+    onSelect: (SortOption) -> Unit,
+    label: String
+) {
+    val selected = current == option
+    FilterChip(
+        selected = selected,
+        onClick = { onSelect(option) },
+        label = { Text(label, maxLines = 1) },
+        leadingIcon = {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(18.dp)) {
+                if (selected) {
+                    Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun BookCard(
     book: Book,
     selectionMode: Boolean,
     selected: Boolean = false,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongPress: () -> Unit
 ) {
     val hasCover = !book.coverPath.isNullOrEmpty() && File(book.coverPath).exists()
 
     ElevatedCard(
-        onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
             .height(230.dp)
+            .combinedClickable(onClick = onClick, onLongClick = onLongPress)
     ) {
         Column {
             // 封面渲染逻辑：如果有提取出的封面图片则渲染图片，否则显示格式勋章
