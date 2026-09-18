@@ -64,10 +64,9 @@ fun ReaderScreen(
             )
             "PDF" -> PdfReader(
                 path = currentBook.path,
-                title = currentBook.title,
                 initialPage = currentBook.currentPage ?: 0,
-                onUpdateProgress = { progress, page -> viewModel.updateReadingProgress(progress, page) },
-                onBack = handleBack
+                onClick = { viewModel.toggleControlsVisibility() },
+                onUpdateProgress = { progress, page -> viewModel.updateReadingProgress(progress, page) }
             )
             "EPUB" -> EpubReader(
                 book = currentBook,
