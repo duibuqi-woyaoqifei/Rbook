@@ -13,5 +13,8 @@ data class ReaderSettings(
     val fontSize: Int = 18,
     val theme: ReaderTheme = ReaderTheme.WHITE,
     val readingMode: ReadingMode = ReadingMode.SCROLL,
-    val hasShownGuide: Boolean = false
+    val hasShownGuide: Boolean = false,
+    val keepScreenAwake: Boolean = false,
+    /** Zero means keep the screen awake for as long as the reader is active. */
+    val keepScreenAwakeDurationSeconds: Int = 300
 )

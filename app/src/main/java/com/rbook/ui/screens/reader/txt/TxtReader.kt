@@ -29,6 +29,7 @@ fun TxtReader(
     path: String,
     settings: ReaderSettings,
     initialPage: Int,
+    seekRequest: Int,
     onClickCenter: () -> Unit,
     onUpdateProgress: (Float, Int) -> Unit
 ) {
@@ -80,7 +81,11 @@ fun TxtReader(
 
             if (settings.readingMode == ReadingMode.SCROLL) {
                 // 1. 垂直滚动阅读模式 (LazyColumn)
-                val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialPage.coerceAtLeast(0))
+                val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialPage.coerceIn(0, (paragraphs.size - 1).coerceAtLeast(0)))
+
+                LaunchedEffect(seekRequest, paragraphs.size) {
+                    if (paragraphs.isNotEmpty() && seekRequest in paragraphs.indices) listState.scrollToItem(seekRequest)
+                }
 
                 LaunchedEffect(listState, paragraphs.size) {
                     snapshotFlow { listState.firstVisibleItemIndex }
@@ -115,6 +120,10 @@ fun TxtReader(
                         initialPage = initialPage.coerceIn(0, paragraphs.lastIndex),
                         pageCount = { paragraphs.size }
                     )
+
+                    LaunchedEffect(seekRequest, paragraphs.size) {
+                        if (paragraphs.isNotEmpty() && seekRequest in paragraphs.indices) pagerState.scrollToPage(seekRequest)
+                    }
 
                     LaunchedEffect(pagerState.currentPage) {
                         val currentPage = pagerState.currentPage

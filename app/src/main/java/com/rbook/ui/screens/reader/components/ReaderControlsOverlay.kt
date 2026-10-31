@@ -6,6 +6,9 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,6 +25,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import kotlin.math.roundToInt
 import com.rbook.domain.model.ReaderSettings
 import com.rbook.domain.model.ReaderTheme
 import com.rbook.domain.model.ReadingMode
@@ -122,6 +128,11 @@ fun ReaderBottomPanel(
     format: String,
     settings: ReaderSettings,
     onUpdateSettings: (ReaderSettings) -> Unit,
+    progress: Float,
+    currentPage: Int,
+    totalPages: Int?,
+    onSeekProgress: (Float) -> Unit,
+    onSeekPage: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val caps = getCapabilities(format)
@@ -141,10 +152,67 @@ fun ReaderBottomPanel(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(max = 560.dp)
+                    .verticalScroll(androidx.compose.foundation.rememberScrollState())
                     .padding(horizontal = 20.dp, vertical = 16.dp)
             ) {
                 // ── 功能可用性概览卡片 ───────────────────────
                 FeatureStatusCard(caps = caps, format = format)
+
+                Spacer(modifier = Modifier.height(12.dp))
+                var percentText by remember(progress) { mutableStateOf((progress.coerceIn(0f, 1f) * 100).roundToInt().toString()) }
+                var pageText by remember(currentPage) { mutableStateOf((currentPage + 1).toString()) }
+                Text("阅读进度", style = MaterialTheme.typography.labelLarge)
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text("第 ${currentPage + 1}${totalPages?.let { " / $it 页" } ?: " 页"}", style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.weight(1f))
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = percentText,
+                        onValueChange = { percentText = it.filter(Char::isDigit).take(3) },
+                        singleLine = true,
+                        modifier = Modifier.width(48.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        textStyle = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurface)
+                    )
+                    Text("%", style = MaterialTheme.typography.bodySmall)
+                    TextButton(onClick = { percentText.toIntOrNull()?.let { onSeekProgress((it.coerceIn(0, 100) / 100f)) } }) { Text("跳转") }
+                }
+                if (totalPages != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Text("页码", style = MaterialTheme.typography.bodySmall)
+                        Spacer(Modifier.width(8.dp))
+                        androidx.compose.foundation.text.BasicTextField(
+                            value = pageText,
+                            onValueChange = { pageText = it.filter(Char::isDigit).take(totalPages.toString().length) },
+                            singleLine = true,
+                            modifier = Modifier.width(64.dp),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            textStyle = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurface)
+                        )
+                        TextButton(onClick = { pageText.toIntOrNull()?.let(onSeekPage) }) { Text("跳转") }
+                    }
+                }
+                Slider(value = progress.coerceIn(0f, 1f), onValueChange = onSeekProgress, valueRange = 0f..1f)
+
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text("屏幕常亮", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                    Switch(checked = settings.keepScreenAwake, onCheckedChange = { onUpdateSettings(settings.copy(keepScreenAwake = it)) })
+                }
+                if (settings.keepScreenAwake) {
+                    Text("保持唤醒时长", style = MaterialTheme.typography.labelMedium)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                    ) {
+                        listOf(30, 60, 180, 300, 600, 0).forEach { seconds ->
+                            FilterChip(
+                                selected = settings.keepScreenAwakeDurationSeconds == seconds,
+                                onClick = { onUpdateSettings(settings.copy(keepScreenAwakeDurationSeconds = seconds)) },
+                                label = { Text(when (seconds) { 0 -> "始终"; 30 -> "30秒"; 60 -> "1分"; else -> "${seconds / 60}分" }) }
+                            )
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(14.dp))
 

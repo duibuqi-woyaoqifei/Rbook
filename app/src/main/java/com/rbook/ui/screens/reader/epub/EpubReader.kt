@@ -25,6 +25,7 @@ import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.toLocator
 import org.json.JSONObject
 import java.io.File
+import kotlin.math.roundToInt
 
 @Composable
 fun EpubReader(
@@ -32,6 +33,7 @@ fun EpubReader(
     onBack: () -> Unit,
     settings: ReaderSettings,
     onClick: () -> Unit,
+    targetProgress: Float?,
     viewModel: EpubReaderViewModel = hiltViewModel(),
     onUpdateProgress: (Locator, Int) -> Unit
 ) {
@@ -54,6 +56,7 @@ fun EpubReader(
                 initialLocatorJson = initialLocatorJson,
                 settings = settings,
                 onClick = onClick,
+                targetProgress = targetProgress,
                 onUpdateProgress = onUpdateProgress
             )
         }
@@ -67,6 +70,7 @@ fun EpubNavigatorView(
     initialLocatorJson: String?,
     settings: ReaderSettings,
     onClick: () -> Unit,
+    targetProgress: Float?,
     onUpdateProgress: (Locator, Int) -> Unit
 ) {
     val context = LocalContext.current
@@ -104,7 +108,7 @@ fun EpubNavigatorView(
             modifier = Modifier.fillMaxSize()
         )
 
-        LaunchedEffect(publication) {
+        LaunchedEffect(publication, targetProgress) {
             val listener = object : EpubNavigatorFragment.Listener {
                 override fun onTap(point: PointF): Boolean {
                     onClick()
@@ -117,9 +121,14 @@ fun EpubNavigatorView(
                 fragmentManager.beginTransaction().remove(existingFragment).commitNow()
             }
 
+            val targetLocator = targetProgress?.let { progress ->
+                publication.readingOrder.getOrNull(
+                    (progress.coerceIn(0f, 1f) * (publication.readingOrder.size - 1).coerceAtLeast(0)).roundToInt()
+                )?.toLocator()
+            }
             val factory = EpubNavigatorFragment.createFactory(
                 publication = publication,
-                initialLocator = initialLocatorJson?.let { json ->
+                initialLocator = targetLocator ?: initialLocatorJson?.let { json ->
                     runCatching { Locator.fromJSON(JSONObject(json)) }.getOrNull()
                 } ?: publication.readingOrder.getOrNull(initialPage)?.toLocator()
                     ?: publication.readingOrder.firstOrNull()?.toLocator(),
