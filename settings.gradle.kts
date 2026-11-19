@@ -12,17 +12,16 @@ pluginManagement {
             }
         }
 
-        // 增加这行：直接从官方插件门户找
-        gradlePluginPortal()
-        // 1. 阿里云镜像（国内高速，覆盖 Google + Central + JCenter）
-        maven { url = uri("https://maven.aliyun.com/repository/google") }
-        maven { url = uri("https://maven.aliyun.com/repository/public") }
-        maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
-        // 2. 官方源（TUN 模式直连兜底）
         google()
         mavenCentral()
         gradlePluginPortal()
-        // 3. 本地 Nexus（仅本地开发且 Nexus 可达时；CI 绝不访问 localhost）
+
+        // 阿里云镜像（国内高速备选）
+        maven { url = uri("https://maven.aliyun.com/repository/google") }
+        maven { url = uri("https://maven.aliyun.com/repository/public") }
+        maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
+
+        // 本地 Nexus（仅本地开发且 Nexus 可达时；CI 绝不访问 localhost）
         if (localNexusAvailable()) {
             maven {
                 url = uri("http://localhost:8081/repository/maven-group/")
