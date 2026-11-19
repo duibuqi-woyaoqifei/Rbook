@@ -129,10 +129,7 @@ fun ReaderBottomPanel(
     settings: ReaderSettings,
     onUpdateSettings: (ReaderSettings) -> Unit,
     progress: Float,
-    currentPage: Int,
-    totalPages: Int?,
     onSeekProgress: (Float) -> Unit,
-    onSeekPage: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val caps = getCapabilities(format)
@@ -160,39 +157,62 @@ fun ReaderBottomPanel(
                 FeatureStatusCard(caps = caps, format = format)
 
                 Spacer(modifier = Modifier.height(12.dp))
-                var percentText by remember(progress) { mutableStateOf((progress.coerceIn(0f, 1f) * 100).roundToInt().toString()) }
-                var pageText by remember(currentPage) { mutableStateOf((currentPage + 1).toString()) }
+
+                var sliderPosition by remember { mutableFloatStateOf(progress.coerceIn(0f, 1f)) }
+                var isDragging by remember { mutableStateOf(false) }
+
+                LaunchedEffect(progress) {
+                    if (!isDragging) {
+                        sliderPosition = progress.coerceIn(0f, 1f)
+                    }
+                }
+
+                val currentDisplayPercent = (sliderPosition * 100).roundToInt().coerceIn(0, 100)
+                var percentInputText by remember { mutableStateOf(currentDisplayPercent.toString()) }
+
+                LaunchedEffect(sliderPosition) {
+                    if (!isDragging) {
+                        percentInputText = currentDisplayPercent.toString()
+                    }
+                }
+
                 Text("阅读进度", style = MaterialTheme.typography.labelLarge)
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Text("第 ${currentPage + 1}${totalPages?.let { " / $it 页" } ?: " 页"}", style = MaterialTheme.typography.bodySmall)
+                    Text("$currentDisplayPercent%", style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.weight(1f))
                     androidx.compose.foundation.text.BasicTextField(
-                        value = percentText,
-                        onValueChange = { percentText = it.filter(Char::isDigit).take(3) },
+                        value = percentInputText,
+                        onValueChange = { percentInputText = it.filter(Char::isDigit).take(3) },
                         singleLine = true,
                         modifier = Modifier.width(48.dp),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         textStyle = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurface)
                     )
                     Text("%", style = MaterialTheme.typography.bodySmall)
-                    TextButton(onClick = { percentText.toIntOrNull()?.let { onSeekProgress((it.coerceIn(0, 100) / 100f)) } }) { Text("跳转") }
-                }
-                if (totalPages != null) {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        Text("页码", style = MaterialTheme.typography.bodySmall)
-                        Spacer(Modifier.width(8.dp))
-                        androidx.compose.foundation.text.BasicTextField(
-                            value = pageText,
-                            onValueChange = { pageText = it.filter(Char::isDigit).take(totalPages.toString().length) },
-                            singleLine = true,
-                            modifier = Modifier.width(64.dp),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            textStyle = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurface)
-                        )
-                        TextButton(onClick = { pageText.toIntOrNull()?.let(onSeekPage) }) { Text("跳转") }
+                    TextButton(onClick = {
+                        percentInputText.toIntOrNull()?.let {
+                            val target = it.coerceIn(0, 100) / 100f
+                            sliderPosition = target
+                            onSeekProgress(target)
+                        }
+                    }) {
+                        Text("跳转")
                     }
                 }
-                Slider(value = progress.coerceIn(0f, 1f), onValueChange = onSeekProgress, valueRange = 0f..1f)
+
+                Slider(
+                    value = sliderPosition,
+                    onValueChange = {
+                        isDragging = true
+                        sliderPosition = it.coerceIn(0f, 1f)
+                        percentInputText = (sliderPosition * 100).roundToInt().coerceIn(0, 100).toString()
+                    },
+                    onValueChangeFinished = {
+                        isDragging = false
+                        onSeekProgress(sliderPosition)
+                    },
+                    valueRange = 0f..1f
+                )
 
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Text("屏幕常亮", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
@@ -201,14 +221,24 @@ fun ReaderBottomPanel(
                 if (settings.keepScreenAwake) {
                     Text("保持唤醒时长", style = MaterialTheme.typography.labelMedium)
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
                     ) {
                         listOf(30, 60, 180, 300, 600, 0).forEach { seconds ->
+                            val isSelected = settings.keepScreenAwakeDurationSeconds == seconds
                             FilterChip(
-                                selected = settings.keepScreenAwakeDurationSeconds == seconds,
+                                selected = isSelected,
                                 onClick = { onUpdateSettings(settings.copy(keepScreenAwakeDurationSeconds = seconds)) },
-                                label = { Text(when (seconds) { 0 -> "始终"; 30 -> "30秒"; 60 -> "1分"; else -> "${seconds / 60}分" }) }
+                                label = {
+                                    Text(
+                                        text = when (seconds) { 0 -> "始终"; 30 -> "30秒"; 60 -> "1分"; else -> "${seconds / 60}分" },
+                                        style = MaterialTheme.typography.labelMedium
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
                             )
                         }
                     }

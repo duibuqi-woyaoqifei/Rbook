@@ -30,7 +30,6 @@ fun ReaderScreen(
     val book by viewModel.book.collectAsState()
     val seekRequest by viewModel.seekRequest.collectAsState()
     val epubSeekProgress by viewModel.epubSeekProgress.collectAsState()
-    val totalPages by viewModel.totalPages.collectAsState()
     val readerSettings by viewModel.readerSettings.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
     val hostView = LocalView.current
@@ -144,10 +143,7 @@ fun ReaderScreen(
             settings = readerSettings,
             onUpdateSettings = { viewModel.updateSettings(it) },
             progress = currentBook.progress,
-            currentPage = currentBook.currentPage ?: 0,
-            totalPages = totalPages,
             onSeekProgress = { viewModel.seekToProgress(it) },
-            onSeekPage = viewModel::seekToPage,
             modifier = Modifier.align(Alignment.BottomCenter)
         )
 

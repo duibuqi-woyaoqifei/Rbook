@@ -19,9 +19,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.rbook.domain.model.Book
 import com.rbook.domain.model.ReaderSettings
 import com.rbook.domain.model.ReaderTheme
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.Locator
+import org.readium.r2.shared.publication.services.locateProgression
 import org.readium.r2.shared.publication.toLocator
 import org.json.JSONObject
 import java.io.File
@@ -108,7 +111,7 @@ fun EpubNavigatorView(
             modifier = Modifier.fillMaxSize()
         )
 
-        LaunchedEffect(publication, targetProgress) {
+        LaunchedEffect(publication) {
             val listener = object : EpubNavigatorFragment.Listener {
                 override fun onTap(point: PointF): Boolean {
                     onClick()
@@ -121,17 +124,12 @@ fun EpubNavigatorView(
                 fragmentManager.beginTransaction().remove(existingFragment).commitNow()
             }
 
-            val targetLocator = targetProgress?.let { progress ->
-                publication.readingOrder.getOrNull(
-                    (progress.coerceIn(0f, 1f) * (publication.readingOrder.size - 1).coerceAtLeast(0)).roundToInt()
-                )?.toLocator()
-            }
             val factory = EpubNavigatorFragment.createFactory(
                 publication = publication,
-                initialLocator = targetLocator ?: initialLocatorJson?.let { json ->
+                initialLocator = initialLocatorJson?.let { json ->
                     runCatching { Locator.fromJSON(JSONObject(json)) }.getOrNull()
-                } ?: publication.readingOrder.getOrNull(initialPage)?.toLocator()
-                    ?: publication.readingOrder.firstOrNull()?.toLocator(),
+                } ?: publication.readingOrder.getOrNull(initialPage)?.let { publication.locatorFromLink(it) }
+                    ?: publication.readingOrder.firstOrNull()?.let { publication.locatorFromLink(it) },
                 listener = listener
             )
             val fragment = factory.instantiate(context.classLoader, EpubNavigatorFragment::class.java.name) as EpubNavigatorFragment
@@ -143,6 +141,18 @@ fun EpubNavigatorView(
             fragment.currentLocator.collect { locator ->
                 val index = publication.readingOrder.indexOfFirst { it.href == locator.href }
                 onUpdateProgress(locator, if (index != -1) index else 0)
+            }
+        }
+
+        LaunchedEffect(targetProgress) {
+            val progress = targetProgress ?: return@LaunchedEffect
+            val fragment = fragmentManager.findFragmentByTag("epub_navigator") as? EpubNavigatorFragment ?: return@LaunchedEffect
+            val locator = publication.locateProgression(progress.toDouble())
+                ?: publication.readingOrder.getOrNull(
+                    (progress.coerceIn(0f, 1f) * (publication.readingOrder.size - 1).coerceAtLeast(0)).roundToInt()
+                )?.let { publication.locatorFromLink(it) }
+            if (locator != null) {
+                fragment.go(locator, animated = false)
             }
         }
     }
